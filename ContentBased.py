@@ -1,73 +1,17 @@
 import pandas as pd
 import pprint
+import tabulate
+from sklearn.metrics.pairwise import cosine_similarity
 
-# Import preprocessed IMDB movie metadata.
-metadata = pd.read_csv('./IMDB Data/processed_data_final.csv')
+# Import preprocesed IMDB movie metadata.
+IMDB_data = pd.read_csv('./IMDB Data/processed_data_final.csv')
 
-# Import Movie Lens Movies data set.
-movie_lens_movie_data = pd.read_csv('ml-100k/u.item', sep='|', names=['Movie_Lens_ID', 'Movie_Title', 'Release_Date', 'Video_Release_Date', 'IMDB_URL'], usecols=range(5),
-                     encoding='latin-1')
+def lower_case(var):
+    return str.lower(var)
 
-# Only keep movies which are common between the two data sets.
-common_movies_data = pd.merge(metadata, movie_lens_movie_data,
-                     how='inner', on=['Movie_Title'])
+IMDB_data['Movie_Title'] = IMDB_data['Movie_Title'].apply(lower_case)
 
-# Import user ratings data set.
-user_ratings = pd.read_csv('ml-100k/u.data', sep='\t', names=['User_ID', 'Movie_Lens_ID', 'Rating', 'Timestamp'],
-                      encoding='latin-1')
-
-# 338 Common IDs.
-valid_IDs = set(common_movies_data['Movie_Lens_ID'].unique())
-
-# Remove ratings for movies not in the common data set.
-# Reduces dataset from size 100,000 to 41,421
-user_ratings = user_ratings[user_ratings['Movie_Lens_ID'].isin(valid_IDs)]
-
-
-# Calculate Weighted Average based on IMDB formula. MAYBE.
-
-'''
-['Director', 'Runtime', 'Genres', 'Movie_Title', 'Plot_Keywords',
-    'Content_Rating', 'Budget', 'Aspect_Ratio', 'Movie_ID',
-    'Release_Date_x', 'Revenue', 'Vote_Average', 'Vote_Count', 'Actors',
-    'Studios', 'Content_Rating_Score', 'Movie_Lens_ID', 'Release_Date_y',
-    'Video_Release_Date', 'IMDB_URL']
-'''
-
-'''
-Similarity based on:
-1. Director
-2. Runtime
-3. Genres
-4. Plot Keywords
-5. Content Rating
-6. Vote Average (Or Content Rating Score)
-7. Actors
-8. Studios
-'''
-
-drops = ['Content_Rating', 'Budget', 'Aspect_Ratio', 'Movie_ID',
-       'Release_Date_x', 'Revenue', 'Vote_Count', 'Content_Rating_Score',
-       'Movie_Lens_ID', 'Release_Date_y', 'Video_Release_Date', 'IMDB_URL']
-
-common_movies_data = common_movies_data.drop(columns=drops)
-
-print(common_movies_data.columns)
-
-# Calculate TF-IDF for keywords?
-'''
-from sklearn.feature_extraction.text import TfidfVectorizer
-tfidf = TfidfVectorizer(stop_words='english')
-
-tfidf_matrix = tfidf.fit_transform(common_movies_data['Plot_Keywords'])
-
-# 1233 plot keywords used to describe 338 films.
-print(tfidf_matrix.shape)
-'''
-
-# Clean the data, by removing spaces.
-
-
+# To normalize strings in the data.
 def normalize_data(var):
     # If is a list.
     if isinstance(var, list):
@@ -82,61 +26,80 @@ def normalize_data(var):
     else:
         return ""
 
-
+# Normalize the String data.
 for feature in ['Director', 'Actors', 'Plot_Keywords', 'Studios', 'Genres']:
-    common_movies_data[feature] = common_movies_data[feature].apply(
-        normalize_data)
+    IMDB_data[feature] = IMDB_data[feature].apply(normalize_data)
 
-# DF with exactly what we want to use.
-# ' '.join(x['keywords']) + ' ' + ' '.join(x['cast']) + ' ' + x['director'] + ' ' + ' '.join(x['genres'])
+# To make description.
+def make_description(data):
+    description = ''
+    for feature in ['Director', 'Actors', 'Plot_Keywords', 'Studios', 'Genres']:
+        description += ''.join(data[feature])
+    return description
 
+# Make description.
+IMDB_data['Description'] = IMDB_data.apply(make_description, axis=1)
 
-def create_soup(x):
-    return ' '.join(x['Director']) + ' ' + ' '.join(x['Actors']) + ' ' + x['Plot_Keywords'] + ' ' + ' '.join(x['Studios']) + ' ' + ' '.join(x['Genres'])
-
-common_movies_data['soup'] = common_movies_data.apply(create_soup, axis=1)
-
+# Create a CountVectorizer.
 from sklearn.feature_extraction.text import CountVectorizer
+count_vectorizer = CountVectorizer(stop_words='english')
 
-count=CountVectorizer(stop_words='english')
-count_matrix=count.fit_transform(common_movies_data['soup'])
+# Get the term-document matrix.
+td_matrix = count_vectorizer.fit_transform(IMDB_data['Description'])
 
-from sklearn.metrics.pairwise import cosine_similarity
+# Reset index.
+IMDB_data = IMDB_data.reset_index()
 
-cosine_sim2 = cosine_similarity(count_matrix, count_matrix)
+# Create a list of data indices & Movie Titles.
+indices = pd.Series(IMDB_data.index, index=IMDB_data['Movie_Title'])
 
-common_movies_data = common_movies_data.reset_index()
+# Function to get a recommendation.
+def recommend(movie_title):
 
-indices = pd.Series(common_movies_data.index, index=common_movies_data['Movie_Title'])
+    # Lower case the query.
+    movie_title = str.lower(movie_title)
+    
+    # Create a cosine similarity object.
+    c_similarity = cosine_similarity(td_matrix, td_matrix)
 
+    # Get the index of the movie.
+    index = indices[movie_title]
 
-# Import linear_kernel
-from sklearn.metrics.pairwise import linear_kernel
+    # Get the cosine similarity for all movies.
+    cosine_similarities = list(enumerate(c_similarity[index]))
 
-# Compute the cosine similarity matrix
-cosine_sim2 = cosine_similarity(count_matrix, count_matrix)
+    # Sort the movies based on the cosine similarities.
+    cosine_similarities = sorted(cosine_similarities, key=lambda x: x[1], reverse=True)
 
-# Use Count Vectorizer on the director, actor.
-def get_recommendations(title, cosine_sim=cosine_sim2):
-    # Get the index of the movie that matches the title
-    idx = indices[title]
+    # Get the top 10 similarities.
+    cosine_similarities = cosine_similarities[1:11]
 
-    # Get the pairwsie similarity scores of all movies with that movie
-    sim_scores = list(enumerate(cosine_sim[idx]))
-
-    # Sort the movies based on the similarity scores
-    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
-
-    # Get the scores of the 10 most similar movies
-    sim_scores = sim_scores[1:11]
+    recommended_indices = []
 
     # Get the movie indices
-    movie_indices = [i[0] for i in sim_scores]
-
-    print(movie_indices)
+    for i in range(0, 10):
+        recommended_indices.append((cosine_similarities[i][0]))
 
     # Return the top 10 most similar movies
-    return common_movies_data['Movie_Title'].iloc[movie_indices]
+    movie_titles = IMDB_data['Movie_Title'].iloc[recommended_indices]
 
-print(get_recommendations(common_movies_data['Movie_Title'].iloc[8]))
+    recommendations = []
+    k = 0
+    for i, row in movie_titles.iteritems():
+        recommendations.append([i, movie_titles[i], cosine_similarities[k][1]])
+        k+=1 
 
+    # Returns items in format: [index, title, cosine_similarity]
+    return recommendations
+
+movie_name = input("Enter a movie in format 'name (YYYY)':\n")
+print("")
+
+# Compute the cosine similarity matrix
+recommended = recommend(movie_name)
+
+prints = []
+for i in range(0, 5):
+    prints.append([recommended[i][1], recommended[i][2]])
+
+print(tabulate.tabulate(prints, headers=['Movie Title', 'Cosine Similarity']))
