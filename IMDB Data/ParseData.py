@@ -354,45 +354,5 @@ full_data = full_data.drop(columns=['Genre_History', 'Genre_Mystery', 'Genre_Spo
 
 print(full_data.columns)
 
-# --
-# Clamp Normalization / Outlier Removal (Optional)
-# --
-'''
-
-clamp_list = ['Budget', 'Revenue', 'Runtime', 'Aspect_Ratio', 'Director_Avg_Movie_Revenue',
-       'Director_Movie_Count', 'Keywords_Avg_Revenue',
-       'Studios_Avg_Movie_Revenue', 'Lead_Actor_Avg_Movie_Revenue',
-       'Lead_Actor_Movie_Count', 'Director_Ratio', 'Keywords_Ratio',
-       'Studios_Ratio', 'Lead_Actor_Ratio']
-
-
-# Clamp
-for column in clamp_list:
-    # IQR
-    Q1 = full_data[column].quantile(0.25)
-    Q3 = full_data[column].quantile(0.75)
-    IQR = Q3 - Q1
-    # Lower and Upper
-    lower_threshold = Q1 - (1.5 * IQR)
-    upper_threshold = Q3 + (1.5 * IQR)
-    # Full Data Replacements.
-    full_data.loc[full_data[column] < lower_threshold, column] = lower_threshold
-    full_data.loc[full_data[column] > upper_threshold, column] = upper_threshold
-
-
-# Remove Outliers
-for column in clamp_list:
-    # IQR
-    Q1 = full_data[column].quantile(0.25)
-    Q3 = full_data[column].quantile(0.75)
-    IQR = Q3 - Q1
-    # Lower and Upper
-    lower_threshold = Q1 - (1.5 * IQR)
-    upper_threshold = Q3 + (1.5 * IQR)
-    # Full Data Replacements.
-    full_data = full_data[full_data[column] > lower_threshold]
-    full_data = full_data[full_data[column] < upper_threshold]
-'''
-
 full_data.to_csv(os.path.dirname(os.path.abspath(__file__))+"\\processed_data_final.csv", index=False)
 
