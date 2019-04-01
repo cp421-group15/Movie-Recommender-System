@@ -92,14 +92,22 @@ def recommend(movie_title):
     # Returns items in format: [index, title, cosine_similarity]
     return recommendations
 
-movie_name = input("Enter a movie in format 'name (YYYY)':\n")
-print("")
+exists = False
 
-# Compute the cosine similarity matrix
-recommended = recommend(movie_name)
+while exists == False:
+    try:
+        movie_name = input("Enter a movie in format 'name (YYYY)':\n")
+        print("")
 
-prints = []
-for i in range(0, 5):
-    prints.append([recommended[i][1], recommended[i][2]])
+        # Compute the cosine similarity matrix
+        recommended = recommend(movie_name)
 
-print(tabulate.tabulate(prints, headers=['Movie Title', 'Cosine Similarity']))
+        prints = []
+        for i in range(0, 5):
+            prints.append([recommended[i][1], recommended[i][2]])
+
+        print(tabulate.tabulate(prints, headers=['Movie Title', 'Cosine Similarity']))
+        exists = True
+    except:
+        print("Movie does not exist in the data set, try again:")
+    
